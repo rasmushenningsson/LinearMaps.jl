@@ -112,13 +112,14 @@ Base.:(==)(A::KroneckerMap, B::KroneckerMap) = (eltype(A) == eltype(B) && A.maps
 # multiplication helper functions
 #################
 
-@inline function _kronmul!(y, B, x, At, T)
-    na, ma = size(At)
+@inline function _kronmul!(y, B, x, A, T)
+    ma, na = size(A)
     mb, nb = size(B)
     X = reshape(x, (nb, na))
     v = zeros(T, ma)
     temp1 = similar(y, na)
     temp2 = similar(y, nb)
+    At = transpose(A)
     @views @inbounds for i in 1:ma
         v[i] = one(T)
         _unsafe_mul!(temp1, At, v)
@@ -128,26 +129,29 @@ Base.:(==)(A::KroneckerMap, B::KroneckerMap) = (eltype(A) == eltype(B) && A.maps
     end
     return y
 end
-@inline function _kronmul!(y, B, x, At::UniformScalingMap, _)
-    na, ma = size(At)
+@inline function _kronmul!(y, B, x, A::UniformScalingMap, _)
+    ma, na = size(A)
     mb, nb = size(B)
     X = reshape(x, (nb, na))
     Y = reshape(y, (mb, ma))
-    _unsafe_mul!(Y, B, X, At.λ, false)
+    _unsafe_mul!(Y, B, X, A.λ, false)
     return y
 end
-@inline function _kronmul!(y, B, x, At::MatrixMap, _)
-    na, ma = size(At)
+@inline function _kronmul!(y, B, x, A::VecOrMatMap, _)
+    ma, na = size(A)
     mb, nb = size(B)
     X = reshape(x, (nb, na))
     Y = reshape(y, (mb, ma))
     if nb*ma < mb*na
-        _unsafe_mul!(Y, B, X * At.lmap)
+        _unsafe_mul!(Y, B, X * transpose(A.lmap))
     else
-        _unsafe_mul!(Y, Matrix(B*X), At.lmap)
+        _unsafe_mul!(Y, Matrix(B*X), transpose(A))
     end
     return y
 end
+const VectorMap{T} = WrappedMap{T,<:AbstractVector}
+const AdjOrTransVectorMap{T} = WrappedMap{T,<:LinearAlgebra.AdjOrTransAbsVec}
+_kronmul!(y, B::AdjOrTransVectorMap, x, a::VectorMap, _) = mul!(y, a.lmap, first(B * x))
 
 #################
 # multiplication with vectors
@@ -158,14 +162,14 @@ const KroneckerMap2{T} = KroneckerMap{T, <:Tuple{LinearMap, LinearMap}}
 function _unsafe_mul!(y::AbstractVecOrMat, L::KroneckerMap2, x::AbstractVector)
     require_one_based_indexing(y)
     A, B = L.maps
-    _kronmul!(y, B, x, transpose(A), eltype(L))
+    _kronmul!(y, B, x, A, eltype(L))
     return y
 end
 function _unsafe_mul!(y::AbstractVecOrMat, L::KroneckerMap, x::AbstractVector)
     require_one_based_indexing(y)
     A = first(L.maps)
     B = kron(Base.tail(L.maps)...)
-    _kronmul!(y, B, x, transpose(A), eltype(L))
+    _kronmul!(y, B, x, A, eltype(L))
     return y
 end
 # mixed-product rule, prefer the right if possible
