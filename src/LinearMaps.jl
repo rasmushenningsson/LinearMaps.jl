@@ -182,7 +182,7 @@ function mul!(y::AbstractVecOrMat, A::LinearMap, x::AbstractVector, α::Number, 
     return _unsafe_mul!(y, A, x, α, β)
 end
 
-function _generic_mapvec_mul!(y, A, x, α, β)
+function _generic_mapvec_mul!(y, A, x, α=true, β=false)
     # this function needs to call mul! for, e.g.,  AdjointMap{...,<:CustomMap}
     if isone(α)
         iszero(β) && return mul!(y, A, x)
@@ -213,11 +213,11 @@ end
 # the following is of interest in, e.g., subspace-iteration methods
 function mul!(Y::AbstractMatrix, A::LinearMap, X::AbstractMatrix)
     check_dim_mul(Y, A, X)
-    return _generic_mapmat_mul!(Y, A, X)
+    return _unsafe_mul!(Y, A, X)
 end
 function mul!(Y::AbstractMatrix, A::LinearMap, X::AbstractMatrix, α::Number, β::Number)
     check_dim_mul(Y, A, X)
-    return _generic_mapmat_mul!(Y, A, X, α, β)
+    return _unsafe_mul!(Y, A, X, α, β)
 end
 
 function _generic_mapmat_mul!(Y, A, X, α=true, β=false)
@@ -233,6 +233,12 @@ end
 
 _unsafe_mul!(y, A::MapOrMatrix, x) = mul!(y, A, x)
 _unsafe_mul!(y, A::AbstractMatrix, x, α, β) = mul!(y, A, x, α, β)
+function _unsafe_mul!(y::AbstractVecOrMat, A::LinearMap, x::AbstractVector)
+    return _generic_mapvec_mul!(y, A, x)
+end
+function _unsafe_mul!(y::AbstractMatrix, A::LinearMap, x::AbstractMatrix)
+    return _generic_mapmat_mul!(y, A, x)
+end
 function _unsafe_mul!(y::AbstractVecOrMat, A::LinearMap, x::AbstractVector, α, β)
     return _generic_mapvec_mul!(y, A, x, α, β)
 end
